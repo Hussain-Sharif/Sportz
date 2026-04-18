@@ -2,6 +2,8 @@ import { Server } from "node:http";
 import WebSocket, { WebSocketServer } from "ws";
 import z from "zod";
 import { createMatchSchema } from "../validations/matches.js";
+import { wsArcjet } from "../arcjet.js";
+import { Request } from "express";
 
 // extended websocket layer for ping-pong checks
 interface ExtWebSocketType extends WebSocket{
@@ -33,8 +35,42 @@ export function attchWebSocketServer(server:Server) {
         maxPayload:1024*1024, // incoming socket msg size limited to 1MB
     })
 
-    wss.on('connection',(socket:ExtWebSocketType)=>{
-        
+    server.on("upgrade",async(req:Request,socket,head)=>{
+        const { pathname } = new URL(req.url, `http://${req.headers.host}`);
+
+        if (pathname !== '/ws') {
+            socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+           socket.destroy();
+            return;
+        }
+
+        if (wsArcjet) {
+            try {
+                const decision = await wsArcjet.protect(req);
+
+                if (decision.isDenied()) {
+                    if (decision.reason.isRateLimit()) {
+                        socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n');
+                    } else {
+                        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    }
+                    socket.destroy();
+                    return;
+                }
+            } catch (e) {
+                console.error('WS upgrade protection error', e);
+                socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+        }
+
+        wss.handleUpgrade(req, socket, head, (ws) => {
+            wss.emit('connection', ws, req);
+        });
+    })
+
+    wss.on('connection',async(socket:ExtWebSocketType,req:Request)=>{
         // when we recieve a pong from client -> set `isAlive`->true
         socket.isAlive=true;
         socket.on("pong",function(this:WebSocket){
