@@ -40,7 +40,7 @@ export function attchWebSocketServer(server:Server) {
 
         if (pathname !== '/ws') {
             socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
-+           socket.destroy();
+           socket.destroy();
             return;
         }
 
