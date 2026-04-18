@@ -26,7 +26,7 @@ matchesRouter.get('/',async (req,res)=>{
             .from(matches)
             .orderBy((desc(matches.createdAt)))
             .limit(limit)
-        console.log("may inside")
+            
         res.json({ data });
     } catch (e) {
         res.status(500).json({ error: 'Failed to list matches.' });

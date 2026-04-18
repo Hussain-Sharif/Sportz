@@ -5,8 +5,6 @@ export function getMatchStatus(startTime:z.infer<typeof createMatchSchema>["star
     const start = new Date(startTime);
     const end = new Date(endTime);
 
-    console.log(start,end,now,now<start,now>=end)
-
     if (now < start) {
         return MATCH_STATUS.enum.scheduled;
     }
