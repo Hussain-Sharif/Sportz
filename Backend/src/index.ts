@@ -23,7 +23,7 @@ app.locals.broadcastMatchCreated=broadcastMatchCreated
 
 server.listen(PORT,()=>{
 
-    const baseUrl = HOST === '0.0.0.0' ? `http://localhost:${PORT}` :`https://${HOST}:${PORT}` 
+    const baseUrl = HOST === '0.0.0.0' ? `http://localhost:${PORT}` : `http://${HOST}:${PORT}` 
 
     console.log(`Server starts: ${baseUrl}`)
     console.log(`WebSocket Server is running on: ${baseUrl.replace('http','ws')}/ws`)  // navigating the socket request to the websocket created file path
