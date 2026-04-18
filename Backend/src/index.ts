@@ -12,11 +12,11 @@ const server = http.createServer(app)
 
 app.use(express.json())
 
-app.use('/',(req,res)=>{
-    res.send("Hi REST!")
-})
-
 app.use(securityMiddleware())
+
+app.get('/',(req,res)=>{
+    res.send('Hi REST!')
+})
 
 app.use('/matches',matchesRouter)
 

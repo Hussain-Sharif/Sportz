@@ -5,7 +5,7 @@ const arcjetKey=process.env.ARCJET_KEY
 const arcjetMode=process.env.ARCJET_MODE === 'DRY_RUN' ? 'DRY_RUN' : 'LIVE'
 
 if (!arcjetKey) {
-    throw new Error('ARCJET_KEY is missing')
+    console.warn('ARCJET_KEY is missing - security middleware disabled')
 }
 
 export const httpArcjet = arcjetKey ?
