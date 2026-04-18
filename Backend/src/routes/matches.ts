@@ -18,7 +18,7 @@ matchesRouter.get('/',async (req,res)=>{
     }
 
     const limit = Math.min(parsed.data.limit ?? 50, MAX_LIMIT);
-    // console.log(parsed.data.limit,limit)
+    
 
     try {
         const data = await db
@@ -45,18 +45,21 @@ matchesRouter.post('/', async (req, res) => {
     }
 
     try {
-        // Destructure to handle naming differences and overrides
         const { homeTeam, startTime, endTime, homeScore, awayScore, ...rest } = parsed.data;
 
         const [event] = await db.insert(matches).values({
             ...rest,
-            homeTeam: homeTeam, // Mapping Zod 'homeTown' to Drizzle 'homeTeam'
+            homeTeam: homeTeam, 
             status: getMatchStatus(startTime, endTime),
             startTime: new Date(startTime),
             endTime: new Date(endTime),
             homeScore: homeScore ?? 0,
             awayScore: awayScore ?? 0,
         }).returning();
+
+        if(res.app.locals.broadcastMatchCreated) {
+            res.app.locals.broadcastMatchCreated(event)
+        }
 
         return res.status(201).json({data:event});
 
