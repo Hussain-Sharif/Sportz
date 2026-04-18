@@ -2,9 +2,9 @@
   "compilerOptions": {
     "module": "nodenext",
     "esModuleInterop": true,
-    "target": "es6",
+    "target": "esnext",
     "moduleResolution": "nodenext",
     "sourceMap": true,
-    "outDir": "dist"
+    "outDir": "dist",
   }
 }
