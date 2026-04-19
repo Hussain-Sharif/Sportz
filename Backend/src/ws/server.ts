@@ -8,7 +8,7 @@ import { createCommentarySchema } from "../validations/commentary.js";
 import { commentary } from "../db/schema.js";
 
 type Payload={
-    type:String,
+    type:string,
     data:any
 }
 
@@ -79,7 +79,7 @@ function broadcastToMatch(matchId:number, payload:Payload){
 }
 
 
-function handleMessage(socket:ExtWebSocketType,data:Payload){
+function handleMessage(socket:ExtWebSocketType,data:WebSocket.RawData){
     let message
 
     try {
@@ -89,14 +89,14 @@ function handleMessage(socket:ExtWebSocketType,data:Payload){
         return;
     }
 
-    if ( message?.type === "subscribe" && Number.isInteger(message.data.matchId)) {
+    if ( message?.type === "subscribe" && Number.isInteger(message?.data?.matchId)) {
         subscribe(message.data.matchId, socket)
         socket.subscriptions.add(message.data.matchId)
         sendJson(socket,{type:'subscribed',matchId:message.data.matchId})
         return 
     }
 
-    if (message?.type === "unsubscribe" && Number.isInteger(message.data.matchId)){
+    if (message?.type === "unsubscribe" && Number.isInteger(message?.data?.matchId)){
         unSubscribe(message.data.matchId,socket)
         socket.subscriptions.delete(message.data.matchId)
         sendJson(socket,{type:'unsubscribed',matchId:message.data.matchId})
@@ -159,7 +159,7 @@ export function attchWebSocketServer(server:Server) {
 
         sendJson(socket,{type:'welcome'})
         
-        socket.on('message',(data:Payload) => {
+        socket.on('message',(data:WebSocket.RawData) => {
             handleMessage(socket,data)
         })
 
@@ -168,6 +168,7 @@ export function attchWebSocketServer(server:Server) {
         })
 
         socket.on('error',()=>{
+            cleanUpSubscriptions(socket)
             socket.terminate()
             console.error(`Some Went Wrong with ws connection `)
         });
