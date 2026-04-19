@@ -86,6 +86,7 @@ function handleMessage(socket:ExtWebSocketType,data:Payload){
         message = JSON.parse(data.toString())
     } catch (error) {
         sendJson(socket,{type:'error',message:'Invalid JSON'})
+        return;
     }
 
     if ( message?.type === "subscribe" && Number.isInteger(message.data.matchId)) {
