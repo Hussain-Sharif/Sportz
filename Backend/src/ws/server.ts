@@ -4,10 +4,18 @@ import z from "zod";
 import { createMatchSchema } from "../validations/matches.js";
 import { wsArcjet } from "../arcjet.js";
 import { Request } from "express";
+import { createCommentarySchema } from "../validations/commentary.js";
+import { commentary } from "../db/schema.js";
+
+type Payload={
+    type:String,
+    data:any
+}
 
 // extended websocket layer for ping-pong checks
 interface ExtWebSocketType extends WebSocket{
-    isAlive:boolean
+    isAlive:boolean,
+    subscriptions:Set<number>
 }
 
 // utility functions
@@ -18,7 +26,7 @@ function sendJson(socket: WebSocket,payload: any){
 }
 
 
-function broadcast(wss:WebSocketServer,payload:any){
+function broadcastToAll(wss:WebSocketServer,payload:Payload){
     for(const client of wss.clients){
         if(client.readyState !== WebSocket.OPEN) continue ;
 
@@ -27,10 +35,78 @@ function broadcast(wss:WebSocketServer,payload:any){
 }
 
 
+// Pub-Sub Impl:
+const matchSubscribers = new Map()
+
+function subscribe(matchId:number,socket:ExtWebSocketType){
+    if ( !matchSubscribers.has(matchId)){
+        matchSubscribers.set(matchId,new Set())
+    }
+
+    matchSubscribers.get(matchId).add(socket)
+}
+
+function unSubscribe(matchId:number,socket:ExtWebSocketType){
+    const subscribers:Set<ExtWebSocketType> = matchSubscribers.get(matchId)
+    
+    if(!subscribers) return;
+
+    subscribers.delete(socket)
+
+    if(subscribers.size === 0 ){
+        matchSubscribers.delete(matchId)
+    }
+}
+
+function cleanUpSubscriptions(socket:ExtWebSocketType){
+    for(const matchId of socket.subscriptions){
+        unSubscribe(matchId,socket)
+    }
+}
+
+function broadcastToMatch(matchId:number, payload:Payload){
+    const subscribers:Set<ExtWebSocketType> = matchSubscribers.get(matchId)
+
+    if(!subscribers || subscribers.size ===0) return;
+
+    const message = JSON.stringify(payload)
+    for(let client of subscribers ){
+        if(client.readyState === WebSocket.OPEN){
+            client.send(message)
+        }
+    }
+
+}
+
+
+function handleMessage(socket:ExtWebSocketType,data:Payload){
+    let message
+
+    try {
+        message = JSON.parse(data.toString())
+    } catch (error) {
+        sendJson(socket,{type:'error',message:'Invalid JSON'})
+    }
+
+    if ( message?.type === "subscribe" && Number.isInteger(message.data.matchId)) {
+        subscribe(message.data.matchId, socket)
+        socket.subscriptions.add(message.data.matchId)
+        sendJson(socket,{type:'subscribed',matchId:message.data.matchId})
+        return 
+    }
+
+    if (message?.type === "unsubscribe" && Number.isInteger(message.data.matchId)){
+        unSubscribe(message.data.matchId,socket)
+        socket.subscriptions.delete(message.data.matchId)
+        sendJson(socket,{type:'unsubscribed',matchId:message.data.matchId})
+    }
+
+}
+
 // server init
 export function attchWebSocketServer(server:Server) {
     const wss = new WebSocketServer({
-        server,
+        noServer:true,
         path:'/ws', // showing the request -> websocket server file
         maxPayload:1024*1024, // incoming socket msg size limited to 1MB
     })
@@ -40,7 +116,7 @@ export function attchWebSocketServer(server:Server) {
 
         if (pathname !== '/ws') {
             socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
-           socket.destroy();
+            socket.destroy();
             return;
         }
 
@@ -78,9 +154,22 @@ export function attchWebSocketServer(server:Server) {
             ws.isAlive=true 
         })
 
+        socket.subscriptions=new Set()
+
         sendJson(socket,{type:'welcome'})
         
-        socket.on('error',console.error);
+        socket.on('message',(data:Payload) => {
+            handleMessage(socket,data)
+        })
+
+        socket.on("close",()=>{
+            cleanUpSubscriptions(socket)
+        })
+
+        socket.on('error',()=>{
+            socket.terminate()
+            console.error(`Some Went Wrong with ws connection `)
+        });
     })
 
     // setting interval to check for dead-connections
@@ -106,9 +195,14 @@ export function attchWebSocketServer(server:Server) {
     });
 
     function broadcastMatchCreated(match:z.infer<typeof createMatchSchema>){
-        broadcast(wss,{type:'match_created',data:match})
+        broadcastToAll(wss,{type:'match_created',data:match})
     }
 
-    return {broadcastMatchCreated}
+    function broadcastCommentaryCreated(matchId:number,comment:z.infer<typeof createCommentarySchema>){
+   
+        broadcastToMatch(matchId,{type:'commentary_created',data:comment})
+    }
+
+    return {broadcastMatchCreated,broadcastCommentaryCreated}
 
 }
